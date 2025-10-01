@@ -1,4 +1,4 @@
-// seefs.c - module entry/exit + filesystem registration
+// seefs_main.c - module entry/exit + filesystem registration
 
 #define FUSE_USE_VERSION 31
 #include "include/seefs.h"

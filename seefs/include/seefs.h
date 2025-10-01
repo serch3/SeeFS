@@ -1,5 +1,4 @@
 // seefs.h - header - shared definitions
-
 #ifndef SEEFS_H
 #define SEEFS_H
 
@@ -13,4 +12,4 @@
 #include <stddef.h>
 #include <assert.h>
 
-#endif /* SEEFS_H */
+#endif
