@@ -11,4 +11,5 @@ modules.order
 *.cmd
 *.d
 .cache/
-plan.txt
+seefs/seefs
+/docs
