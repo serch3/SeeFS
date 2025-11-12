@@ -1,4 +1,5 @@
 // seefs.h - Shared definitions and API for the SeeFS FUSE filesystem.
+// https://libfuse.github.io/doxygen/structfuse__operations.html
 #ifndef SEEFS_H
 #define SEEFS_H
 

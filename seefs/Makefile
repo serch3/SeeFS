@@ -8,18 +8,18 @@ SRCDIR = .
 BUILDDIR = build
 
 # Source files
-SRCS = seefs_main.c super.c inode.c file.c proc_data.c
+SRCS = seefs_main.c fuse_ops.c path_ops.c file.c proc_data.c
 OBJS = $(SRCS:%.c=$(BUILDDIR)/%.o)
 
 # Target executable
-TARGET = seefs
+TARGET = $(BUILDDIR)/seefs
 
 .PHONY: all clean
 
 all: $(TARGET)
 
 # Link the target
-$(TARGET): $(OBJS)
+$(TARGET): $(OBJS) | $(BUILDDIR)
 	$(CC) -o $@ $(OBJS) $(LDFLAGS)
 
 # Compile source files into build directory
@@ -32,4 +32,4 @@ $(BUILDDIR):
 
 # Clean up
 clean:
-	rm -rf $(BUILDDIR) $(TARGET)
+	rm -rf $(BUILDDIR)

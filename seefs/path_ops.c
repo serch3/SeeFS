@@ -1,5 +1,5 @@
 /**
- * inode.c - Directory hierarchy and path resolution.
+ * path_ops.c - Directory hierarchy and path resolution.
  *
  * Implements the directory structure, path parsing, and FUSE inode operations
  * (getattr, readdir) by reading from /proc.
@@ -7,13 +7,41 @@
 
 #include "include/seefs.h"
 
+#include <limits.h>
+#include <sys/stat.h>
+
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
+
+#ifndef S_IFDIR
+#define S_IFDIR 0040000
+#endif
+
+#ifndef S_IFREG
+#define S_IFREG 0100000
+#endif
+
 /* ========================================================================
  * Constants and Helper Macros
  * ======================================================================== */
 
-// Read-only permissions for all users.
-static const mode_t SEEFS_DIR_MODE = S_IFDIR | 0555;
-static const mode_t SEEFS_FILE_MODE = S_IFREG | 0444;
+/* ========================================================================
+ * Stat Helpers
+ * ======================================================================== */
+
+static void seefs_set_dir_attr(struct stat *stbuf)
+{
+	stbuf->st_mode = S_IFDIR | 0555;
+	stbuf->st_nlink = 2;
+}
+
+static void seefs_set_file_attr(struct stat *stbuf, size_t size)
+{
+	stbuf->st_mode = S_IFREG | 0444;
+	stbuf->st_nlink = 1;
+	stbuf->st_size = size;
+}
 
 /* ========================================================================
  * Dynamic String Vector
@@ -144,6 +172,25 @@ struct seefs_pid_collect_ctx {
 };
 
 /* ========================================================================
+ * Validation Helpers
+ * ======================================================================== */
+
+static int seefs_require_user(const struct seefs_path_info *info)
+{
+	return seefs_user_exists(info->username);
+}
+
+static int seefs_require_group(const struct seefs_path_info *info)
+{
+	return seefs_group_exists(info->username, info->branch, info->group);
+}
+
+static int seefs_require_pid(const struct seefs_path_info *info)
+{
+	return seefs_pid_matches(info, NULL);
+}
+
+/* ========================================================================
  * Process Iteration Callbacks
  * 
  * These functions are invoked for each process during /proc enumeration.
@@ -153,7 +200,7 @@ struct seefs_pid_collect_ctx {
  * Callback to collect all unique usernames.
  */
 static int seefs_username_collect_cb(const struct seefs_proc_info *info,
-						  void *ctx)
+					  void *ctx)
 {
 	struct seefs_string_vec *vec = ctx;
 	return seefs_vec_append_unique(vec, info->username);
@@ -545,58 +592,48 @@ int seefs_inode_getattr(const char *path, struct stat *stbuf)
 
 	switch (info.type) {
 	case SEEFS_NODE_ROOT:
-		stbuf->st_mode = SEEFS_DIR_MODE;
-		stbuf->st_nlink = 2;
+		seefs_set_dir_attr(stbuf);
 		return 0;
 	case SEEFS_NODE_HELLO:
-		stbuf->st_mode = SEEFS_FILE_MODE;
-		stbuf->st_nlink = 1;
-		stbuf->st_size = strlen(SEEFS_HELLO_CONTENT);
+		seefs_set_file_attr(stbuf, strlen(SEEFS_HELLO_CONTENT));
 		return 0;
 	case SEEFS_NODE_USERS:
-		stbuf->st_mode = SEEFS_DIR_MODE;
-		stbuf->st_nlink = 2;
+		seefs_set_dir_attr(stbuf);
 		return 0;
 	case SEEFS_NODE_USER: {
-		int rc = seefs_user_exists(info.username);
+		int rc = seefs_require_user(&info);
 		if (rc != 0)
 			return rc;
-		stbuf->st_mode = SEEFS_DIR_MODE;
-		stbuf->st_nlink = 2;
+		seefs_set_dir_attr(stbuf);
 		return 0;
 	}
 	case SEEFS_NODE_BRANCH: {
-		int rc = seefs_user_exists(info.username);
+		int rc = seefs_require_user(&info);
 		if (rc != 0)
 			return rc;
-		stbuf->st_mode = SEEFS_DIR_MODE;
-		stbuf->st_nlink = 2;
+		seefs_set_dir_attr(stbuf);
 		return 0;
 	}
 	case SEEFS_NODE_GROUP: {
-		int rc = seefs_group_exists(info.username, info.branch, info.group);
+		int rc = seefs_require_group(&info);
 		if (rc != 0)
 			return rc;
-		stbuf->st_mode = SEEFS_DIR_MODE;
-		stbuf->st_nlink = 2;
+		seefs_set_dir_attr(stbuf);
 		return 0;
 	}
 	case SEEFS_NODE_PID: {
-		int rc = seefs_pid_matches(&info, NULL);
+		int rc = seefs_require_pid(&info);
 		if (rc != 0)
 			return rc;
-		stbuf->st_mode = SEEFS_DIR_MODE;
-		stbuf->st_nlink = 2;
+		seefs_set_dir_attr(stbuf);
 		return 0;
 	}
 	case SEEFS_NODE_DATA_FILE: {
-		int rc = seefs_pid_matches(&info, NULL);
+		int rc = seefs_require_pid(&info);
 		if (rc != 0)
 			return rc;
-		stbuf->st_mode = SEEFS_FILE_MODE;
-		stbuf->st_nlink = 1;
 		// Report a non-zero size so applications will try to read it.
-		stbuf->st_size = 4096;
+		seefs_set_file_attr(stbuf, 4096);
 		return 0;
 	}
 	default:
@@ -632,7 +669,7 @@ int seefs_inode_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 		seefs_fill_common_directory_entries(buf, filler);
 		return seefs_fill_usernames(buf, filler);
 	case SEEFS_NODE_USER: {
-		int rc = seefs_user_exists(info.username);
+		int rc = seefs_require_user(&info);
 		if (rc != 0)
 			return rc;
 		seefs_fill_common_directory_entries(buf, filler);
@@ -641,14 +678,14 @@ int seefs_inode_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 		return 0;
 	}
 	case SEEFS_NODE_BRANCH: {
-		int rc = seefs_user_exists(info.username);
+		int rc = seefs_require_user(&info);
 		if (rc != 0)
 			return rc;
 		seefs_fill_common_directory_entries(buf, filler);
 		return seefs_fill_groups(info.username, info.branch, buf, filler);
 	}
 	case SEEFS_NODE_GROUP: {
-		int rc = seefs_group_exists(info.username, info.branch, info.group);
+		int rc = seefs_require_group(&info);
 		if (rc != 0)
 			return rc;
 		seefs_fill_common_directory_entries(buf, filler);
@@ -656,7 +693,7 @@ int seefs_inode_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 		                       filler);
 	}
 	case SEEFS_NODE_PID: {
-		int rc = seefs_pid_matches(&info, NULL);
+		int rc = seefs_require_pid(&info);
 		if (rc != 0)
 			return rc;
 		seefs_fill_common_directory_entries(buf, filler);

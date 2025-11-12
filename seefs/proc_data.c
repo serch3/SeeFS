@@ -3,6 +3,12 @@
 // Provides functions to iterate /proc, fetch process metadata, and read
 // data files like cmdline and status.
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
+#define _POSIX_C_SOURCE 200809L
+
 #include "include/seefs.h"
 
 /* ========================================================================
@@ -38,16 +44,6 @@ static void seefs_sanitize_component(const char *input, bool drop_brackets,
 		seefs_copy_string(out, out_size, "unknown");
 }
 
-/**
- * Remove trailing newline from a string.
- */
-static void seefs_trim_newline(char *buf)
-{
-	size_t len = strlen(buf);
-	if (len > 0 && buf[len - 1] == '\n')
-		buf[len - 1] = '\0';
-}
-
 /* ========================================================================
  * /proc File Reading
  * ======================================================================== */
@@ -59,51 +55,51 @@ static void seefs_trim_newline(char *buf)
 static int seefs_read_file_into_buffer(const char *path, char **buf,
                                        size_t *len)
 {
-	int fd = open(path, O_RDONLY | O_CLOEXEC);
-	if (fd == -1)
+	FILE *src = fopen(path, "re");
+	if (!src)
 		return -errno;
 
-	size_t cap = SEEFS_INIT_BUF_SIZE;
-	char *data = malloc(cap);
-	if (!data) {
-		close(fd);
-		return -ENOMEM;
+	*buf = NULL;
+	*len = 0;
+
+	FILE *mem = open_memstream(buf, len);
+	if (!mem) {
+		int err = -errno;
+		fclose(src);
+		return err;
 	}
 
-	size_t total = 0;
-	for (;;) {
-		ssize_t n = read(fd, data + total, cap - total);
-		
-		if (n == 0)
-			break;
-			
-		if (n < 0) {
-			int err = -errno;
-			free(data);
-			close(fd);
-			return err;
-		}
-		
-		total += (size_t) n;
-		
-		if (cap - total < SEEFS_BUF_THRESHOLD) {
-			size_t new_cap = cap * SEEFS_BUF_GROW_FACTOR;
-			char *new_data = realloc(data, new_cap);
-			if (!new_data) {
-				free(data);
-				close(fd);
-				return -ENOMEM;
+	char chunk[SEEFS_INIT_BUF_SIZE];
+	int rc = 0;
+
+	while (!feof(src)) {
+		size_t n = fread(chunk, 1, sizeof(chunk), src);
+		if (n > 0) {
+			if (fwrite(chunk, 1, n, mem) != n) {
+				rc = -errno;
+				break;
 			}
-			data = new_data;
-			cap = new_cap;
+		}
+		if (n < sizeof(chunk)) {
+			if (ferror(src) && rc == 0)
+				rc = -errno;
+			break;
 		}
 	}
 
-	close(fd);
+	if (fclose(src) != 0 && rc == 0)
+		rc = -errno;
 
-	*buf = data;
-	*len = total;
-	return 0;
+	if (fclose(mem) != 0 && rc == 0)
+		rc = -errno;
+
+	if (rc != 0) {
+		free(*buf);
+		*buf = NULL;
+		*len = 0;
+	}
+
+	return rc;
 }
 
 /* ========================================================================
@@ -144,19 +140,27 @@ int seefs_proc_info_fetch(pid_t pid, struct seefs_proc_info *info)
 	if (!fp)
 		return -errno;
 
-	if (!fgets(info->comm, sizeof(info->comm), fp)) {
-		int err = ferror(fp) ? -errno : -ENOENT;
-		fclose(fp);
-		return err;
-	}
+	char *comm_line = NULL;
+	size_t comm_cap = 0;
+	ssize_t comm_len = getline(&comm_line, &comm_cap, fp);
+	int read_errno = errno;
 	fclose(fp);
 
-	seefs_trim_newline(info->comm);
+	if (comm_len < 0) {
+		free(comm_line);
+		return read_errno ? -read_errno : -ENOENT;
+	}
 
-	size_t comm_len = strlen(info->comm);
+	if (comm_len > 0 && comm_line[comm_len - 1] == '\n')
+		comm_line[comm_len - 1] = '\0';
+
+	seefs_copy_string(info->comm, sizeof(info->comm), comm_line);
+	free(comm_line);
+
+	size_t comm_len_clean = strlen(info->comm);
 	info->is_kernel_thread =
-	    (comm_len >= 2 && info->comm[0] == '[' &&
-	     info->comm[comm_len - 1] == ']');
+	    (comm_len_clean >= 2 && info->comm[0] == '[' &&
+	     info->comm[comm_len_clean - 1] == ']');
 
 	seefs_sanitize_component(info->comm, info->is_kernel_thread,
 	                         info->group_name, sizeof(info->group_name));

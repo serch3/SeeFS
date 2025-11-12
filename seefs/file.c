@@ -4,21 +4,30 @@
 #include "include/seefs.h"
 
 /**
+ * Copy a slice from a buffer honoring the requested offset and size.
+ */
+static int seefs_copy_slice(const char *src, size_t src_len, char *dst,
+			       size_t dst_len, off_t offset)
+{
+	if ((size_t) offset >= src_len)
+		return 0;
+
+	size_t slice = dst_len;
+	size_t available = src_len - (size_t) offset;
+	if (slice > available)
+		slice = available;
+
+	memcpy(dst, src + offset, slice);
+	return (int) slice;
+}
+
+/**
  * Read from a static string buffer.
  */
 static int seefs_read_static(const char *content, char *buf, size_t size,
                              off_t offset)
 {
-	size_t len = strlen(content);
-	
-	if ((size_t) offset >= len)
-		return 0;
-
-	if (offset + size > len)
-		size = len - offset;
-
-	memcpy(buf, content + offset, size);
-	return (int) size;
+	return seefs_copy_slice(content, strlen(content), buf, size, offset);
 }
 
 /**
@@ -98,15 +107,7 @@ int seefs_file_read(const char *path, char *buf, size_t size, off_t offset,
 		if (rc != 0)
 			return rc;
 
-		int bytes_read = 0;
-		if ((size_t) offset < len) {
-			size_t slice = size;
-			if (offset + slice > len)
-				slice = len - offset;
-			memcpy(buf, data + offset, slice);
-			bytes_read = (int) slice;
-		}
-
+		int bytes_read = seefs_copy_slice(data, len, buf, size, offset);
 		free(data);
 		return bytes_read;
 	}

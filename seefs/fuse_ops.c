@@ -1,10 +1,11 @@
-// super.c - FUSE operations registration.
+// fuse_ops.c - FUSE operations registration.
 //
-// Defines the FUSE operations structure that maps callbacks to functions in inode.c and file.c.
+// Defines the FUSE operations structure that maps callbacks to functions in
+// path_ops.c and file.c.
 
 #include "include/seefs.h"
 
-static struct fuse_operations seefs_oper = {
+static const struct fuse_operations seefs_oper = {
 	.getattr = seefs_inode_getattr,
 	.readdir = seefs_inode_readdir,
 	.open = seefs_file_open,
