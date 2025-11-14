@@ -1,7 +1,4 @@
 // proc_data.c - Readers for /proc process information.
-//
-// Provides functions to iterate /proc, fetch process metadata, and read
-// data files like cmdline and status.
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -102,10 +99,6 @@ static int seefs_read_file_into_buffer(const char *path, char **buf,
 	return rc;
 }
 
-/* ========================================================================
- * Process Information Fetching
- * ======================================================================== */
-
 /**
  * Fetch detailed information for a specific PID.
  * Gathers ownership, command name, and kernel thread status.
@@ -204,10 +197,6 @@ int seefs_proc_iterate(int (*cb)(const struct seefs_proc_info *info,
 	closedir(dir);
 	return ret;
 }
-
-/* ========================================================================
- * Process Data File Readers
- * ======================================================================== */
 
 /**
  * Read and format the command line for a process.

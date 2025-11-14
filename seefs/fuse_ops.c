@@ -1,7 +1,4 @@
 // fuse_ops.c - FUSE operations registration.
-//
-// Defines the FUSE operations structure that maps callbacks to functions in
-// path_ops.c and file.c.
 
 #include "include/seefs.h"
 

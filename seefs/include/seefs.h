@@ -1,5 +1,6 @@
 // seefs.h - Shared definitions and API for the SeeFS FUSE filesystem.
 // https://libfuse.github.io/doxygen/structfuse__operations.html
+
 #ifndef SEEFS_H
 #define SEEFS_H
 
@@ -30,7 +31,7 @@
 #define SEEFS_PROC_ROOT      "/proc"
 #define SEEFS_NAME_MAX       256
 
-// Buffer size constants
+// Buffer size constants used when reading from /proc and formatting strings.
 #define SEEFS_PW_BUF_SIZE    1024
 #define SEEFS_PID_STR_SIZE   32
 #define SEEFS_INIT_BUF_SIZE  4096
@@ -65,7 +66,6 @@ enum seefs_branch_type {
  * Core Data Structures
  * ======================================================================== */
 
-// Parsed representation of a SeeFS path.
 struct seefs_path_info {
 	enum seefs_node_type type;
 	enum seefs_branch_type branch;
@@ -75,7 +75,6 @@ struct seefs_path_info {
 	char data_file[SEEFS_NAME_MAX];
 };
 
-// Information about a process read from /proc.
 struct seefs_proc_info {
 	pid_t pid;
 	uid_t uid;
@@ -110,17 +109,13 @@ static inline void seefs_copy_string(char *dst, size_t dst_size, const char *src
  * Path Parsing and Validation API
  * ======================================================================== */
 
-// Parse a filesystem path into structured components.
 bool seefs_parse_path(const char *path, struct seefs_path_info *info);
 
-// Check if a user exists (has any running processes).
 int seefs_user_exists(const char *username);
 
-// Check if a process group exists for a user and branch.
 int seefs_group_exists(const char *username, enum seefs_branch_type branch,
                        const char *group_name);
 
-// Verify that a PID matches the expected path context.
 int seefs_pid_matches(const struct seefs_path_info *info,
                       struct seefs_proc_info *proc_out);
 
@@ -128,39 +123,30 @@ int seefs_pid_matches(const struct seefs_path_info *info,
  * FUSE Operation Handlers
  * ======================================================================== */
 
-// Get file attributes.
 int seefs_inode_getattr(const char *path, struct stat *stbuf);
 
-// Read directory contents.
 int seefs_inode_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                         off_t offset, struct fuse_file_info *fi);
 
-// Open a file.
 int seefs_file_open(const char *path, struct fuse_file_info *fi);
 
-// Read file contents.
 int seefs_file_read(const char *path, char *buf, size_t size, off_t offset,
                     struct fuse_file_info *fi);
 
-// Get the FUSE operations structure.
 const struct fuse_operations *seefs_get_operations(void);
 
 /* ========================================================================
  * Process Data API
  * ======================================================================== */
 
-// Iterate over all running processes.
 int seefs_proc_iterate(int (*cb)(const struct seefs_proc_info *info,
                                  void *ctx),
                        void *ctx);
 
-// Fetch information about a specific process.
 int seefs_proc_info_fetch(pid_t pid, struct seefs_proc_info *info);
 
-// Read and format the command line for a process.
 int seefs_proc_read_cmdline(pid_t pid, char **buf, size_t *len);
 
-// Read the status file for a process.
 int seefs_proc_read_status(pid_t pid, char **buf, size_t *len);
 
 #endif // SEEFS_H

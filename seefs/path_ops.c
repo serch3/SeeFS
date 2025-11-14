@@ -56,9 +56,6 @@ struct seefs_string_vec {
 	size_t capacity;
 };
 
-/**
- * Initialize an empty string vector.
- */
 static void seefs_vec_init(struct seefs_string_vec *vec)
 {
 	vec->capacity = 8;
@@ -69,9 +66,6 @@ static void seefs_vec_init(struct seefs_string_vec *vec)
 	}
 }
 
-/**
- * Free all memory associated with a string vector.
- */
 static void seefs_vec_free(struct seefs_string_vec *vec)
 {
 	for (size_t i = 0; i < vec->count; ++i)
@@ -82,9 +76,6 @@ static void seefs_vec_free(struct seefs_string_vec *vec)
 	vec->capacity = 0;
 }
 
-/**
- * Grow the vector capacity.
- */
 static int seefs_vec_grow(struct seefs_string_vec *vec)
 {
 	size_t new_cap = vec->capacity ? vec->capacity * 2 : 8;
@@ -96,9 +87,6 @@ static int seefs_vec_grow(struct seefs_string_vec *vec)
 	return 0;
 }
 
-/**
- * Append a string to the vector if not already present.
- */
 static int seefs_vec_append_unique(struct seefs_string_vec *vec,
                                    const char *value)
 {
@@ -121,9 +109,6 @@ static int seefs_vec_append_unique(struct seefs_string_vec *vec,
 	return 0;
 }
 
-/**
- * Comparator for qsort - alphabetical string ordering.
- */
 static int seefs_string_cmp(const void *a, const void *b)
 {
 	const char *const *sa = a;
@@ -196,9 +181,6 @@ static int seefs_require_pid(const struct seefs_path_info *info)
  * These functions are invoked for each process during /proc enumeration.
  * ======================================================================== */
 
-/**
- * Callback to collect all unique usernames.
- */
 static int seefs_username_collect_cb(const struct seefs_proc_info *info,
 					  void *ctx)
 {
@@ -206,9 +188,6 @@ static int seefs_username_collect_cb(const struct seefs_proc_info *info,
 	return seefs_vec_append_unique(vec, info->username);
 }
 
-/**
- * Callback to check if a specific username exists. Stops iteration if found.
- */
 static int seefs_user_iter_cb(const struct seefs_proc_info *info, void *ctx)
 {
 	struct seefs_user_lookup_ctx *user_ctx = ctx;
@@ -219,9 +198,6 @@ static int seefs_user_iter_cb(const struct seefs_proc_info *info, void *ctx)
 	return 0;
 }
 
-/**
- * Callback to check if a group exists under a specific user/branch. Stops iteration if found.
- */
 static int seefs_group_iter_cb(const struct seefs_proc_info *info, void *ctx)
 {
 	struct seefs_group_lookup_ctx *group_ctx = ctx;
@@ -235,9 +211,6 @@ static int seefs_group_iter_cb(const struct seefs_proc_info *info, void *ctx)
 	return 1;
 }
 
-/**
- * Callback to collect all unique group names for a user/branch.
- */
 static int seefs_group_collect_cb(const struct seefs_proc_info *info,
                                   void *ctx)
 {
@@ -249,9 +222,6 @@ static int seefs_group_collect_cb(const struct seefs_proc_info *info,
 	return seefs_vec_append_unique(collect_ctx->vec, info->group_name);
 }
 
-/**
- * Callback to collect all PIDs for a specific user/branch/group.
- */
 static int seefs_pid_collect_cb(const struct seefs_proc_info *info, void *ctx)
 {
 	struct seefs_pid_collect_ctx *collect_ctx = ctx;
@@ -271,9 +241,6 @@ static int seefs_pid_collect_cb(const struct seefs_proc_info *info, void *ctx)
  * Branch Type Helpers
  * ======================================================================== */
 
-/**
- * Convert string to branch type enum.
- */
 static bool seefs_branch_from_string(const char *token,
                                      enum seefs_branch_type *branch)
 {
@@ -397,9 +364,6 @@ bool seefs_parse_path(const char *path, struct seefs_path_info *info)
  * Path Validation Functions
  * ======================================================================== */
 
-/**
- * Check if a process belongs to the specified branch (applications vs. kernel threads).
- */
 static bool seefs_branch_matches(const struct seefs_proc_info *info,
                                  enum seefs_branch_type branch)
 {
@@ -410,9 +374,6 @@ static bool seefs_branch_matches(const struct seefs_proc_info *info,
 	return false;
 }
 
-/**
- * Check if a username exists by iterating /proc.
- */
 int seefs_user_exists(const char *username)
 {
 	struct seefs_user_lookup_ctx ctx = {
@@ -427,9 +388,6 @@ int seefs_user_exists(const char *username)
 	return ctx.found ? 0 : -ENOENT;
 }
 
-/**
- * Check if a group exists under a specific user and branch.
- */
 int seefs_group_exists(const char *username, enum seefs_branch_type branch,
                       const char *group_name)
 {

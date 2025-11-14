@@ -1,5 +1,4 @@
-// file.c - FUSE file operations (open, read) for SeeFS.
-// Handles read-only access for static and /proc-based files.
+// file.c - FUSE file operations (open, read) for SeeFS (e.g. /hello, /users/..../cmdline).
 
 #include "include/seefs.h"
 
