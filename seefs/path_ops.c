@@ -23,10 +23,6 @@
 #endif
 
 /* ========================================================================
- * Constants and Helper Macros
- * ======================================================================== */
-
-/* ========================================================================
  * Stat Helpers
  * ======================================================================== */
 
@@ -238,127 +234,8 @@ static int seefs_pid_collect_cb(const struct seefs_proc_info *info, void *ctx)
 }
 
 /* ========================================================================
- * Branch Type Helpers
- * ======================================================================== */
-
-static bool seefs_branch_from_string(const char *token,
-                                     enum seefs_branch_type *branch)
-{
-	if (strcmp(token, "applications") == 0) {
-		*branch = SEEFS_BRANCH_APPLICATIONS;
-		return true;
-	}
-	if (strcmp(token, "kernel_threads") == 0) {
-		*branch = SEEFS_BRANCH_KERNEL_THREADS;
-		return true;
-	}
-	return false;
-}
-
-/* ========================================================================
  * Path Parsing
  * ======================================================================== */
-
-/**
- * Parse a FUSE path into typed components.
- *
- * Analyzes the path structure and populates seefs_path_info with the node type
- * and extracted components like username, PID, etc.
- *
- * Returns true if the path is valid, false otherwise.
- */
-bool seefs_parse_path(const char *path, struct seefs_path_info *info)
-{
-	memset(info, 0, sizeof(*info));
-	info->type = SEEFS_NODE_INVALID;
-	info->branch = SEEFS_BRANCH_NONE;
-
-	if (!path || path[0] != '/')
-		return false;
-
-	if (strcmp(path, "/") == 0) {
-		info->type = SEEFS_NODE_ROOT;
-		return true;
-	}
-
-	if (strcmp(path, SEEFS_HELLO_PATH) == 0) {
-		info->type = SEEFS_NODE_HELLO;
-		return true;
-	}
-
-	if (strlen(path) >= PATH_MAX)
-		return false;
-
-	// Copy path for tokenization (skip leading slash)
-	char temp[PATH_MAX];
-	strncpy(temp, path + 1, sizeof(temp) - 1);
-	temp[sizeof(temp) - 1] = '\0';
-
-	char *segments[8];
-	size_t seg_count = 0;
-	char *save_ptr = NULL;
-	char *token = strtok_r(temp, "/", &save_ptr);
-	while (token && seg_count < sizeof(segments) / sizeof(segments[0])) {
-		segments[seg_count++] = token;
-		token = strtok_r(NULL, "/", &save_ptr);
-	}
-	if (token != NULL) // path depth exceeds expectation
-		return false;
-
-	if (seg_count == 0)
-		return false;
-
-	if (strcmp(segments[0], "users") != 0)
-		return false;
-
-	if (seg_count == 1) {
-		info->type = SEEFS_NODE_USERS;
-		return true;
-	}
-
-	seefs_copy_string(info->username, sizeof(info->username), segments[1]);
-
-	if (seg_count == 2) {
-		info->type = SEEFS_NODE_USER;
-		return true;
-	}
-
-	if (!seefs_branch_from_string(segments[2], &info->branch))
-		return false;
-
-	if (seg_count == 3) {
-		info->type = SEEFS_NODE_BRANCH;
-		return true;
-	}
-
-	seefs_copy_string(info->group, sizeof(info->group), segments[3]);
-
-	if (seg_count == 4) {
-		info->type = SEEFS_NODE_GROUP;
-		return true;
-	}
-
-	char *endptr = NULL;
-	long pid_val = strtol(segments[4], &endptr, 10);
-	if (!endptr || *endptr != '\0' || pid_val <= 0)
-		return false;
-
-	info->pid = (pid_t) pid_val;
-
-	if (seg_count == 5) {
-		info->type = SEEFS_NODE_PID;
-		return true;
-	}
-
-	if (seg_count == 6 && 
-	    (strcmp(segments[5], "cmdline") == 0 || strcmp(segments[5], "status") == 0)) {
-		seefs_copy_string(info->data_file, sizeof(info->data_file), segments[5]);
-		info->type = SEEFS_NODE_DATA_FILE;
-		return true;
-	}
-
-	return false;
-}
 
 /* ========================================================================
  * Path Validation Functions
@@ -594,6 +471,15 @@ int seefs_inode_getattr(const char *path, struct stat *stbuf)
 		seefs_set_file_attr(stbuf, 4096);
 		return 0;
 	}
+	case SEEFS_NODE_HISTORY:
+		seefs_set_dir_attr(stbuf);
+		return 0;
+	case SEEFS_NODE_TIMESTAMP:
+		seefs_set_dir_attr(stbuf);
+		return 0;
+	case SEEFS_NODE_HISTORY_FILE:
+		seefs_set_file_attr(stbuf, 4096);
+		return 0;
 	default:
 		break;
 	}
@@ -657,8 +543,28 @@ int seefs_inode_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 		seefs_fill_common_directory_entries(buf, filler);
 		filler(buf, "cmdline", NULL, 0);
 		filler(buf, "status", NULL, 0);
+		filler(buf, "history", NULL, 0);
 		return 0;
 	}
+	case SEEFS_NODE_HISTORY: {
+		seefs_fill_common_directory_entries(buf, filler);
+		char **timestamps = NULL;
+		size_t count = 0;
+		int rc = seefs_history_get_timestamps(info.pid, &timestamps, &count);
+		if (rc == 0) {
+			for (size_t i = 0; i < count; ++i) {
+				filler(buf, timestamps[i], NULL, 0);
+				free(timestamps[i]);
+			}
+			free(timestamps);
+		}
+		return 0;
+	}
+	case SEEFS_NODE_TIMESTAMP:
+		seefs_fill_common_directory_entries(buf, filler);
+		filler(buf, "cmdline", NULL, 0);
+		filler(buf, "status", NULL, 0);
+		return 0;
 	default:
 		break;
 	}
