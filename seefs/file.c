@@ -72,6 +72,9 @@ int seefs_file_open(const char *path, struct fuse_file_info *fi)
 		fi->fh = (uint64_t)info.pid;
 		return 0;
 	}
+
+	case SEEFS_NODE_HISTORY_FILE:
+		return 0;
 		
 	default:
 		return -EISDIR;
@@ -109,6 +112,17 @@ int seefs_file_read(const char *path, char *buf, size_t size, off_t offset,
 		int bytes_read = seefs_copy_slice(data, len, buf, size, offset);
 		free(data);
 		return bytes_read;
+	}
+
+	case SEEFS_NODE_HISTORY_FILE: {
+		char *data = NULL;
+		size_t len = 0;
+		int rc = seefs_history_get_data(info.pid, info.timestamp, info.data_file, &data, &len);
+		if (rc != 0)
+			return rc;
+		int bytes = seefs_copy_slice(data, len, buf, size, offset);
+		free(data);
+		return bytes;
 	}
 	
 	default:

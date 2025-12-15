@@ -21,6 +21,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include "history.h"
 
 /* ========================================================================
  * Configuration Constants
@@ -29,7 +30,8 @@
 #define SEEFS_HELLO_PATH     "/hello"
 #define SEEFS_HELLO_CONTENT  "Hello, World!\n"
 #define SEEFS_PROC_ROOT      "/proc"
-#define SEEFS_NAME_MAX       256
+
+#include "path_parser.h"
 
 // Buffer size constants used when reading from /proc and formatting strings.
 #define SEEFS_PW_BUF_SIZE    1024
@@ -39,42 +41,12 @@
 #define SEEFS_BUF_GROW_FACTOR 2
 
 /* ========================================================================
- * Path Node and Branch Types
- * ======================================================================== */
-
-// Represents the type of a path component in the SeeFS hierarchy.
-enum seefs_node_type {
-	SEEFS_NODE_INVALID = 0,
-	SEEFS_NODE_ROOT,
-	SEEFS_NODE_HELLO,
-	SEEFS_NODE_USERS,
-	SEEFS_NODE_USER,
-	SEEFS_NODE_BRANCH,
-	SEEFS_NODE_GROUP,
-	SEEFS_NODE_PID,
-	SEEFS_NODE_DATA_FILE,
-};
-
-// Distinguishes between user-space applications and kernel threads.
-enum seefs_branch_type {
-	SEEFS_BRANCH_NONE = 0,
-	SEEFS_BRANCH_APPLICATIONS,
-	SEEFS_BRANCH_KERNEL_THREADS,
-};
-
-/* ========================================================================
  * Core Data Structures
  * ======================================================================== */
 
-struct seefs_path_info {
-	enum seefs_node_type type;
-	enum seefs_branch_type branch;
-	char username[SEEFS_NAME_MAX];
-	char group[SEEFS_NAME_MAX];
-	pid_t pid;
-	char data_file[SEEFS_NAME_MAX];
-};
-
+/**
+ * @brief Information about a running process retrieved from /proc.
+ */
 struct seefs_proc_info {
 	pid_t pid;
 	uid_t uid;
@@ -89,7 +61,7 @@ struct seefs_proc_info {
  * ======================================================================== */
 
 /**
- * Safely copy a string with guaranteed null-termination.
+ * @brief Safely copy a string with guaranteed null-termination.
  */
 static inline void seefs_copy_string(char *dst, size_t dst_size, const char *src)
 {
@@ -108,8 +80,6 @@ static inline void seefs_copy_string(char *dst, size_t dst_size, const char *src
 /* ========================================================================
  * Path Parsing and Validation API
  * ======================================================================== */
-
-bool seefs_parse_path(const char *path, struct seefs_path_info *info);
 
 int seefs_user_exists(const char *username);
 
@@ -149,5 +119,5 @@ int seefs_proc_read_cmdline(pid_t pid, char **buf, size_t *len);
 
 int seefs_proc_read_status(pid_t pid, char **buf, size_t *len);
 
-#endif // SEEFS_H
+#endif
 
