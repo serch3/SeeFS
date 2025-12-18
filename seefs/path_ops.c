@@ -471,15 +471,27 @@ int seefs_inode_getattr(const char *path, struct stat *stbuf)
 		seefs_set_file_attr(stbuf, 4096);
 		return 0;
 	}
-	case SEEFS_NODE_HISTORY:
+	case SEEFS_NODE_HISTORY: {
+		int rc = seefs_require_pid(&info);
+		if (rc != 0)
+			return rc;
 		seefs_set_dir_attr(stbuf);
 		return 0;
-	case SEEFS_NODE_TIMESTAMP:
+	}
+	case SEEFS_NODE_TIMESTAMP: {
+		int rc = seefs_require_pid(&info);
+		if (rc != 0)
+			return rc;
 		seefs_set_dir_attr(stbuf);
 		return 0;
-	case SEEFS_NODE_HISTORY_FILE:
+	}
+	case SEEFS_NODE_HISTORY_FILE: {
+		int rc = seefs_require_pid(&info);
+		if (rc != 0)
+			return rc;
 		seefs_set_file_attr(stbuf, 4096);
 		return 0;
+	}
 	default:
 		break;
 	}
@@ -547,11 +559,17 @@ int seefs_inode_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 		return 0;
 	}
 	case SEEFS_NODE_HISTORY: {
+		int rc = seefs_require_pid(&info);
+		if (rc != 0)
+			return rc;
+
 		seefs_fill_common_directory_entries(buf, filler);
 		char **timestamps = NULL;
 		size_t count = 0;
-		int rc = seefs_history_get_timestamps(info.pid, &timestamps, &count);
-		if (rc == 0) {
+		rc = seefs_history_get_timestamps(info.pid, &timestamps, &count);
+		if (rc != 0)
+			return rc;
+		{
 			for (size_t i = 0; i < count; ++i) {
 				filler(buf, timestamps[i], NULL, 0);
 				free(timestamps[i]);
@@ -560,11 +578,15 @@ int seefs_inode_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 		}
 		return 0;
 	}
-	case SEEFS_NODE_TIMESTAMP:
+	case SEEFS_NODE_TIMESTAMP: {
+		int rc = seefs_require_pid(&info);
+		if (rc != 0)
+			return rc;
 		seefs_fill_common_directory_entries(buf, filler);
 		filler(buf, "cmdline", NULL, 0);
 		filler(buf, "status", NULL, 0);
 		return 0;
+	}
 	default:
 		break;
 	}

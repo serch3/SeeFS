@@ -74,7 +74,7 @@ int seefs_file_open(const char *path, struct fuse_file_info *fi)
 	}
 
 	case SEEFS_NODE_HISTORY_FILE:
-		return 0;
+		return seefs_pid_matches(&info, NULL);
 		
 	default:
 		return -EISDIR;

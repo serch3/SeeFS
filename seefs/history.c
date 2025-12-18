@@ -84,6 +84,7 @@ static void take_snapshot(struct process_history *ph) {
 }
 
 static int history_scan_cb(const struct seefs_proc_info *info, void *ctx) {
+    (void)ctx;
     // Check if we are already tracking this PID
     struct process_history *ph = history_head;
     while (ph) {
@@ -106,6 +107,7 @@ static int history_scan_cb(const struct seefs_proc_info *info, void *ctx) {
 }
 
 static void *history_worker(void *arg) {
+    (void)arg;
     while (history_running) {
         pthread_mutex_lock(&history_lock);
         seefs_proc_iterate(history_scan_cb, NULL);
@@ -117,12 +119,17 @@ static void *history_worker(void *arg) {
 
 void seefs_history_init(void) {
     history_running = true;
-    pthread_create(&history_thread, NULL, history_worker, NULL);
+    int rc = pthread_create(&history_thread, NULL, history_worker, NULL);
+    if (rc != 0) {
+        history_running = false;
+    }
 }
 
 void seefs_history_shutdown(void) {
-    history_running = false;
-    pthread_join(history_thread, NULL);
+    if (history_running) {
+        history_running = false;
+        pthread_join(history_thread, NULL);
+    }
     
     pthread_mutex_lock(&history_lock);
     struct process_history *ph = history_head;
@@ -164,6 +171,14 @@ int seefs_history_get_timestamps(pid_t pid, char ***timestamps, size_t *count) {
     s = ph->snapshots;
     for (size_t i = 0; i < n; ++i) {
         (*timestamps)[i] = strdup(s->timestamp);
+        if (!(*timestamps)[i]) {
+            for (size_t j = 0; j < i; ++j)
+                free((*timestamps)[j]);
+            free(*timestamps);
+            *timestamps = NULL;
+            pthread_mutex_unlock(&history_lock);
+            return -ENOMEM;
+        }
         s = s->next;
     }
     *count = n;
@@ -199,6 +214,10 @@ int seefs_history_get_data(pid_t pid, const char *timestamp, const char *filenam
     if (strcmp(filename, "cmdline") == 0) {
         if (s->cmdline) {
             *buffer = malloc(s->cmdline_len);
+            if (!*buffer) {
+                pthread_mutex_unlock(&history_lock);
+                return -ENOMEM;
+            }
             memcpy(*buffer, s->cmdline, s->cmdline_len);
             *size = s->cmdline_len;
         } else {
@@ -208,6 +227,10 @@ int seefs_history_get_data(pid_t pid, const char *timestamp, const char *filenam
     } else if (strcmp(filename, "status") == 0) {
         if (s->status) {
             *buffer = malloc(s->status_len);
+            if (!*buffer) {
+                pthread_mutex_unlock(&history_lock);
+                return -ENOMEM;
+            }
             memcpy(*buffer, s->status, s->status_len);
             *size = s->status_len;
         } else {
