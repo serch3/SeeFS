@@ -8,7 +8,7 @@ SRCDIR = .
 BUILDDIR = build
 
 # Source files
-SRCS = seefs_main.c fuse_ops.c path_ops.c file.c proc_data.c
+SRCS = seefs_main.c fuse_ops.c path_ops.c file.c proc_data.c history.c path_parser.c
 OBJS = $(SRCS:%.c=$(BUILDDIR)/%.o)
 
 # Target executable
@@ -33,3 +33,8 @@ $(BUILDDIR):
 # Clean up
 clean:
 	rm -rf $(BUILDDIR)
+
+# Tests
+test: $(BUILDDIR)/path_parser.o | $(BUILDDIR)
+	$(CC) $(CFLAGS) tests/test_path_parser.c $(BUILDDIR)/path_parser.o -o $(BUILDDIR)/test_path_parser $(LDFLAGS)
+	$(BUILDDIR)/test_path_parser
