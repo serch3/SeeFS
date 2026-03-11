@@ -135,7 +135,8 @@ int seefs_proc_info_fetch(pid_t pid, struct seefs_proc_info *info)
 
 	char *comm_line = NULL;
 	size_t comm_cap = 0;
-	ssize_t comm_len = getline(&comm_line, &comm_cap, fp);
+	errno = 0;
+        ssize_t comm_len = getline(&comm_line, &comm_cap, fp);
 	int read_errno = errno;
 	fclose(fp);
 

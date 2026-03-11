@@ -1,7 +1,9 @@
 # Compiler and flags
 CC = gcc
-CFLAGS = -Wall `pkg-config fuse --cflags`
-LDFLAGS = `pkg-config fuse --libs`
+
+FUSE_PKG := $(shell pkg-config --exists fuse3 && echo fuse3 || echo fuse)
+CFLAGS = -Wall -Wextra -Wpedantic -std=c11 -D_FILE_OFFSET_BITS=64 -D_POSIX_C_SOURCE=200809L $(shell pkg-config $(FUSE_PKG) --cflags) -pthread
+LDFLAGS = $(shell pkg-config $(FUSE_PKG) --libs) -pthread
 
 # Source and build directories
 SRCDIR = .

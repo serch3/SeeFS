@@ -1,3 +1,4 @@
+#include <limits.h>
 #include "include/seefs.h"
 #include <string.h>
 #include <stdlib.h>
@@ -53,13 +54,13 @@ bool seefs_parse_path(const char *path, struct seefs_path_info *info)
 		return true;
 	}
 
-	if (strlen(path) >= PATH_MAX)
-		return false;
+size_t path_len = strlen(path);
+        if (path_len >= PATH_MAX)
+                return false;
 
-	// Copy path for tokenization (skip leading slash)
-	char temp[PATH_MAX];
-	strncpy(temp, path + 1, sizeof(temp) - 1);
-	temp[sizeof(temp) - 1] = '\0';
+        // Copy path for tokenization (skip leading slash)
+        char temp[PATH_MAX];
+        memcpy(temp, path + 1, path_len); // Copies null byte too
 
 	char *segments[8];
 	size_t seg_count = 0;
@@ -107,7 +108,7 @@ bool seefs_parse_path(const char *path, struct seefs_path_info *info)
 
 	char *endptr = NULL;
 	long pid_val = strtol(segments[4], &endptr, 10);
-	if (!endptr || *endptr != '\0' || pid_val <= 0)
+	if (!endptr || *endptr != '\0' || pid_val <= 0 || pid_val > INT_MAX)
 		return false;
 
 	info->pid = (pid_t) pid_val;
